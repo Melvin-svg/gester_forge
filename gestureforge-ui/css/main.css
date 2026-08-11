@@ -1,0 +1,167 @@
+/* ============================================
+   GESTUREFORGE — MAIN & DESIGN SYSTEM
+   ============================================ */
+
+:root {
+    /* Color Tokens */
+    --gf-bg: #08080c;
+    --gf-bg-elevated: #0c0c14;
+    --gf-bg-raised: #12121c;
+    --gf-surface: #1a1a26;
+    --gf-surface-hover: #222230;
+    
+    --gf-text-primary: #f0f0f5;
+    --gf-text-secondary: #a0a0b0;
+    --gf-text-tertiary: #6a6a7a;
+    --gf-text-muted: #444454;
+    
+    --gf-border: #2a2a3a;
+    --gf-border-hover: #3a3a4e;
+    
+    --gf-accent: #5b8def;
+    --gf-accent-glow: rgba(91, 141, 239, 0.3);
+    --gf-positive: #4ade80;
+    --gf-positive-dim: rgba(74, 222, 128, 0.15);
+    --gf-warning: #fbbf24;
+    --gf-warning-dim: rgba(251, 191, 36, 0.15);
+    --gf-danger: #f87171;
+    --gf-danger-dim: rgba(248, 113, 113, 0.15);
+    
+    /* Chart Series */
+    --gf-chart-1: #5b8def;
+    --gf-chart-2: #ef4444;
+    --gf-chart-3: #22c55e;
+    --gf-chart-4: #a855f7;
+    --gf-chart-5: #6b7280;
+    
+    /* Spacing Scale */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --space-6: 24px;
+    --space-8: 32px;
+    --space-10: 40px;
+    --space-12: 48px;
+    
+    /* Radius Scale */
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 12px;
+    --radius-xl: 16px;
+    --radius-full: 9999px;
+    
+    /* Motion */
+    --dur-fast: 120ms;
+    --dur-normal: 200ms;
+    --dur-slow: 350ms;
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-in-out: cubic-bezier(0.45, 0, 0.55, 1);
+    
+    /* Typography */
+    --font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-mono: 'Share Tech Mono', 'SF Mono', Monaco, monospace;
+    
+    /* Layout */
+    --hud-top-height: 72px;
+    --panel-width: 320px;
+    --wheel-size: 220px;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    user-select: none;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    font-family: var(--font-sans);
+    background: var(--gf-bg);
+    color: var(--gf-text-primary);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* Screen Router */
+.screen {
+    position: fixed;
+    inset: 0;
+    display: none;
+    opacity: 0;
+    transition: opacity var(--dur-slow) var(--ease-out);
+    z-index: 1;
+}
+
+.screen.active {
+    display: flex;
+    flex-direction: column;
+    opacity: 1;
+    z-index: 10;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+::-webkit-scrollbar-thumb {
+    background: var(--gf-border);
+    border-radius: var(--radius-full);
+}
+::-webkit-scrollbar-thumb:hover {
+    background: var(--gf-border-hover);
+}
+
+/* Utility Classes */
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    border: 0;
+}
+
+.tabular { font-variant-numeric: tabular-nums; }
+
+/* Screen Header */
+.screen-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-4) var(--space-6);
+    border-bottom: 1px solid var(--gf-border);
+    background: var(--gf-bg-elevated);
+    flex-shrink: 0;
+}
+
+.header-text h2 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--gf-text-primary);
+    line-height: 1.3;
+    letter-spacing: 0.5px;
+    font-family: var(--font-sans);
+}
+
+.header-text p {
+    font-size: 13px;
+    color: var(--gf-text-tertiary);
+    margin-top: 2px;
+}
+
+.header-actions {
+    margin-left: auto;
+    display: flex;
+    gap: var(--space-3);
+}

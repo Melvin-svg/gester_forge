@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GestureForge | AI-Powered Adaptive Gesture Game</title>
+  <link rel="stylesheet" href="style.css">
+  <!-- Google Fonts for premium cyberpunk typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  
+  <!-- MediaPipe CDN scripts (the frame pump is hand-rolled in handTracker.js,
+       so camera_utils is not needed) -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+</head>
+<body>
+  <div class="cyber-scanline"></div>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="logo">
+        <span class="logo-accent">GESTURE</span>FORGE
+      </div>
+      <div class="header-status">
+        <span class="status-indicator online" id="camera-status-dot"></span>
+        <span class="status-text" id="camera-status-text">Webcam Loading...</span>
+      </div>
+    </header>
+
+    <!-- Main Grid Layout -->
+    <main class="grid-layout">
+      
+      <!-- Left Panel: Input & Calibration -->
+      <section class="panel left-panel">
+        <div class="panel-header">
+          <h2>Input & Tracking</h2>
+        </div>
+        
+        <!-- Webcam and skeleton canvas overlay -->
+        <div class="webcam-viewport">
+          <video id="webcam-video" autoplay playsinline muted></video>
+          <canvas id="tracking-canvas"></canvas>
+          <div class="calibration-overlay" id="calibration-overlay">
+            <div class="calibration-prompt" id="calibration-prompt">Press Calibrate to Start</div>
+            <div class="calibration-progress-bar">
+              <div class="calibration-progress-fill" id="calibration-progress-fill"></div>
+            </div>
+            <div class="calibration-distance-hint" id="calibration-distance-hint">
+              Keep your hand roughly <strong>30-50cm</strong> from the camera, fully inside the frame.
+            </div>
+          </div>
+        </div>
+
+        <!-- Calibration Wizard -->
+        <div class="calibration-control">
+          <h3>Adaptive Calibration</h3>
+          <div class="calibration-steps-indicator" id="calibration-steps">
+            <span class="step-dot active" data-step="0">Size</span>
+            <span class="step-dot" data-step="1">Pinch</span>
+            <span class="step-dot" data-step="2">Palm</span>
+            <span class="step-dot" data-step="3">Fist</span>
+          </div>
+          <button class="cyber-btn primary" id="btn-calibrate">Start Calibration</button>
+          <p class="panel-desc">Align your hand inside the camera frame. Dynamic calibration adapts detection models to your hand shape and lighting.</p>
+          <div class="min-distance-readout" id="min-distance-readout" style="display:none;">
+            <span class="mdr-label">Minimum Hand Distance</span>
+            <span class="mdr-value" id="min-distance-value">--</span>
+          </div>
+        </div>
+
+        <!-- Accessibility panel -->
+        <div class="accessibility-settings">
+          <h3>Accessibility Controls</h3>
+          <div class="setting-item">
+            <label for="select-hand">Dominant Hand</label>
+            <select id="select-hand">
+              <option value="right">Right Hand</option>
+              <option value="left">Left Hand</option>
+            </select>
+          </div>
+          <div class="setting-item">
+            <label for="toggle-mirror">Mirror Camera</label>
+            <input type="checkbox" id="toggle-mirror" checked>
+          </div>
+          <div class="setting-item">
+            <label for="slider-sensitivity">Gesture Sensitivity</label>
+            <input type="range" id="slider-sensitivity" min="0.5" max="2.0" step="0.1" value="1.0">
+            <span id="sensitivity-value">1.0x</span>
+          </div>
+          <div class="setting-item">
+            <label for="toggle-onehand">One-Hand Mode</label>
+            <input type="checkbox" id="toggle-onehand" checked>
+          </div>
+        </div>
+      </section>
+
+      <!-- Center Panel: The Game Screen -->
+      <section class="panel center-panel">
+        <div class="game-hud">
+          <div class="hud-stats">
+            <div class="stat-box">
+              <span class="label">LEVEL</span>
+              <span class="value" id="game-level">1</span>
+            </div>
+            <div class="stat-box">
+              <span class="label">SCORE</span>
+              <span class="value" id="game-score">00000</span>
+            </div>
+          </div>
+          <div class="hud-bars">
+            <div class="bar-container hp">
+              <span class="bar-label">HP</span>
+              <div class="bar-fill-bg">
+                <div class="bar-fill" id="hp-bar-fill" style="width: 100%;"></div>
+              </div>
+            </div>
+            <div class="bar-container mp">
+              <span class="bar-label">MP</span>
+              <div class="bar-fill-bg">
+                <div class="bar-fill" id="mp-bar-fill" style="width: 100%;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="game-viewport">
+          <canvas id="game-canvas"></canvas>
+
+          <!-- Picture-in-picture camera + hand tracking, shown while playing -->
+          <div class="pip-camera" id="pip-camera">
+            <canvas id="pip-canvas"></canvas>
+            <div class="pip-distance">
+              <span class="pip-distance-label" id="pip-distance-label">Hand Distance</span>
+              <div class="pip-distance-bar">
+                <div class="pip-distance-fill" id="pip-distance-fill"></div>
+                <div class="pip-distance-min-marker" id="pip-distance-min-marker"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Start / Game Over Screens -->
+          <div class="game-overlay show" id="game-overlay">
+            <h1 id="overlay-title">GESTUREFORGE</h1>
+            <p id="overlay-desc">Use gestures to command the battlefield. Complete the calibration first to tune the AI models to your hand.</p>
+            <div class="spell-guide-grid">
+              <div class="guide-item">
+                <span class="spell-icon glow-green">🖐️</span>
+                <span class="spell-name">Shield (Open Palm)</span>
+              </div>
+              <div class="guide-item">
+                <span class="spell-icon glow-red">👌</span>
+                <span class="spell-name">Fireball (Pinch)</span>
+              </div>
+              <div class="guide-item">
+                <span class="spell-icon glow-yellow">✊</span>
+                <span class="spell-name">Earth Slam (Fist)</span>
+              </div>
+              <div class="guide-item">
+                <span class="spell-icon glow-cyan">👉</span>
+                <span class="spell-name">Wind Slash (Swipe)</span>
+              </div>
+            </div>
+            <button class="cyber-btn success" id="btn-start-game" disabled>Complete Calibration to Play</button>
+            <button class="cyber-btn secondary" id="btn-skip-calibration" style="margin-top: 10px; font-size: 0.8rem; padding: 6px 12px;">Skip Calibration (Debug Play)</button>
+          </div>
+        </div>
+
+        <div class="combo-indicator">
+          <h3>Spell Combo Queue</h3>
+          <div class="combo-slots" id="combo-slots">
+            <span class="combo-slot empty"></span>
+            <span class="combo-slot empty"></span>
+            <span class="combo-slot empty"></span>
+          </div>
+          <div class="combo-hint" id="combo-hint">Cast a spell to start a combo chain!</div>
+        </div>
+      </section>
+
+      <!-- Right Panel: Analytics & Coach -->
+      <section class="panel right-panel">
+        <div class="panel-header">
+          <h2>Performance Dashboard</h2>
+        </div>
+
+        <div class="dashboard-widgets">
+          <!-- Realtime stats -->
+          <div class="metrics-grid">
+            <div class="metric-card">
+              <div class="metric-val" id="metric-fps">--</div>
+              <div class="metric-lbl">Frame Rate (FPS)</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-val" id="metric-latency">-- ms</div>
+              <div class="metric-lbl">Inference Latency</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-val" id="metric-accuracy">--%</div>
+              <div class="metric-lbl">Gesture Accuracy</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-val" id="metric-fatigue">Normal</div>
+              <div class="metric-lbl">Fatigue Status</div>
+            </div>
+          </div>
+
+          <!-- Custom SVGs/Canvas for graphs -->
+          <div class="dashboard-graph">
+            <h3>Latency & Jitter (Last 30s)</h3>
+            <div class="canvas-chart-container">
+              <canvas id="chart-latency"></canvas>
+            </div>
+          </div>
+
+          <div class="dashboard-graph">
+            <h3>Gesture Distribution</h3>
+            <div class="canvas-chart-container">
+              <canvas id="chart-distribution"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Gesture Coach panel -->
+        <div class="gesture-coach-box">
+          <div class="coach-avatar">🤖</div>
+          <div class="coach-content">
+            <h3>Gesture Coach</h3>
+            <p id="coach-message">Awaiting camera access. Please make sure your room is well lit.</p>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <div>GestureForge Framework v1.0.0 &copy; 2026 - AI-Driven Human-Computer Interaction</div>
+      <div id="dda-status">Difficulty: Calibrating...</div>
+    </footer>
+  </div>
+
+  <!-- Game files loading sequentially -->
+  <script src="js/camera.js"></script>
+  <script src="js/handTracker.js"></script>
+  <script src="js/gestureClassifier.js"></script>
+  <script src="js/gameEngine.js"></script>
+  <script src="js/analytics.js"></script>
+  <script src="js/coach.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,185 @@
+/* ============================================
+   GESTUREFORGE — REUSABLE UI COMPONENTS
+   ============================================ */
+
+/* Buttons */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-5);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--gf-border);
+    background: var(--gf-surface);
+    color: var(--gf-text-primary);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--dur-fast) var(--ease-out);
+    font-family: inherit;
+}
+
+.btn:hover {
+    background: var(--gf-surface-hover);
+    border-color: var(--gf-border-hover);
+    transform: translateY(-1px);
+}
+
+.btn.primary {
+    background: var(--gf-text-primary);
+    color: var(--gf-bg);
+    border-color: var(--gf-text-primary);
+}
+
+.btn.primary:hover {
+    background: var(--gf-text-secondary);
+    border-color: var(--gf-text-secondary);
+}
+
+.btn.danger {
+    background: var(--gf-danger-dim);
+    color: var(--gf-danger);
+    border-color: rgba(248, 113, 113, 0.3);
+}
+
+.btn.danger:hover {
+    background: rgba(248, 113, 113, 0.25);
+}
+
+.btn.secondary {
+    background: transparent;
+    color: var(--gf-text-secondary);
+    border-color: var(--gf-border);
+}
+
+.btn.secondary:hover {
+    background: var(--gf-surface);
+    color: var(--gf-text-primary);
+    border-color: var(--gf-border-hover);
+}
+
+.btn.small {
+    padding: var(--space-2) var(--space-3);
+    font-size: 12px;
+}
+
+.icon-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--gf-border);
+    background: var(--gf-surface);
+    color: var(--gf-text-secondary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all var(--dur-fast);
+}
+
+.icon-btn:hover {
+    background: var(--gf-surface-hover);
+    color: var(--gf-text-primary);
+}
+
+/* Custom Toggle Switch */
+.toggle {
+    position: relative;
+    width: 44px;
+    height: 24px;
+    cursor: pointer;
+    display: inline-block;
+}
+
+.toggle input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    inset: 0;
+    background: var(--gf-border);
+    border-radius: var(--radius-full);
+    transition: background var(--dur-fast);
+}
+
+.toggle-slider::before {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--gf-text-primary);
+    transition: transform var(--dur-fast) var(--ease-out);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.toggle input:checked + .toggle-slider {
+    background: var(--gf-positive);
+}
+
+.toggle input:checked + .toggle-slider::before {
+    transform: translateX(20px);
+}
+
+/* Range Inputs */
+.slider-wrap {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.range-input {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 120px;
+    height: 4px;
+    background: var(--gf-border);
+    border-radius: 2px;
+    outline: none;
+}
+
+.range-input::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--gf-text-primary);
+    cursor: pointer;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+    transition: transform var(--dur-fast);
+}
+
+.range-input::-webkit-slider-thumb:hover {
+    transform: scale(1.15);
+}
+
+.range-value {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--gf-text-secondary);
+    min-width: 40px;
+    text-align: right;
+}
+
+/* Select Inputs */
+.select-input {
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--gf-border);
+    background: var(--gf-surface);
+    color: var(--gf-text-primary);
+    font-size: 13px;
+    cursor: pointer;
+    font-family: inherit;
+    outline: none;
+}
+
+.select-input:focus {
+    border-color: var(--gf-border-hover);
+}

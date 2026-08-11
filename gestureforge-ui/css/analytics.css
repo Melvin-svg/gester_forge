@@ -1,0 +1,188 @@
+/* ============================================
+   GESTUREFORGE — PERFORMANCE ANALYTICS DASHBOARD
+   ============================================ */
+
+.analytics-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+    padding: var(--space-6);
+    overflow-y: auto;
+}
+
+.dash-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--space-5);
+}
+
+.dash-card {
+    background: var(--gf-bg-raised);
+    border: 1px solid var(--gf-border);
+    border-radius: var(--radius-xl);
+    padding: var(--space-4);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 120px;
+}
+
+.dash-card.wide {
+    grid-column: span 2;
+    min-height: 240px;
+}
+
+.dash-card h4 {
+    font-size: 12px;
+    text-transform: uppercase;
+    color: var(--gf-text-secondary);
+    letter-spacing: 0.5px;
+    margin-bottom: var(--space-2);
+}
+
+/* KPI specifics */
+.kpi-value {
+    font-family: var(--font-mono);
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--gf-text-primary);
+}
+
+.kpi-value.positive {
+    color: var(--gf-positive);
+    text-shadow: 0 0 10px rgba(74, 222, 128, 0.15);
+}
+
+.kpi-delta {
+    font-size: 11px;
+    color: var(--gf-text-tertiary);
+    margin-top: var(--space-1);
+}
+
+.sparkline {
+    height: 30px;
+    margin-top: var(--space-3);
+    border-bottom: 1px dashed var(--gf-border);
+    position: relative;
+    overflow: hidden;
+}
+
+/* Charts */
+.chart-card {
+    justify-content: flex-start;
+}
+
+.chart-container {
+    flex: 1;
+    background: rgba(0,0,0,0.2);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--gf-border);
+    overflow: hidden;
+    position: relative;
+    min-height: 150px;
+}
+
+.chart-legend {
+    display: flex;
+    gap: var(--space-4);
+    margin-top: var(--space-3);
+    font-size: 11px;
+    flex-wrap: wrap;
+}
+
+.combo-breakdown {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+}
+
+/* Environmental factors cards */
+.env-metric {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 12px;
+    margin-bottom: var(--space-2);
+}
+
+.env-label {
+    color: var(--gf-text-tertiary);
+}
+
+.env-bar {
+    flex: 1;
+    height: 4px;
+    background: var(--gf-border);
+    border-radius: var(--radius-full);
+    margin: 0 var(--space-4);
+    overflow: hidden;
+}
+
+.env-fill {
+    height: 100%;
+    border-radius: var(--radius-full);
+}
+
+.env-fill.good { background: var(--gf-positive); }
+.env-fill.warn { background: var(--gf-warning); }
+
+.env-value {
+    font-family: var(--font-mono);
+    color: var(--gf-text-primary);
+}
+
+/* Data Tables */
+.table-card {
+    background: var(--gf-bg-raised);
+    border: 1px solid var(--gf-border);
+    border-radius: var(--radius-xl);
+    padding: var(--space-5);
+}
+
+.metrics-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: var(--space-3);
+    font-size: 13px;
+    text-align: left;
+}
+
+.metrics-table th {
+    border-bottom: 2px solid var(--gf-border);
+    color: var(--gf-text-secondary);
+    font-weight: 600;
+    padding: var(--space-2) var(--space-3);
+}
+
+.metrics-table td {
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+    padding: var(--space-3);
+    font-family: var(--font-sans);
+}
+
+.metrics-table tbody tr:hover {
+    background: rgba(255,255,255,0.01);
+}
+
+.metrics-table td.numeric {
+    font-family: var(--font-mono);
+}
+
+.metrics-table .status-label {
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.metrics-table .status-label.good {
+    background: var(--gf-positive-dim);
+    color: var(--gf-positive);
+}
+
+.metrics-table .status-label.warn {
+    background: var(--gf-warning-dim);
+    color: var(--gf-warning);
+}
