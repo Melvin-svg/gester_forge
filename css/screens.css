@@ -559,6 +559,83 @@
     color: var(--gf-text-secondary);
 }
 
+.checklist-hint {
+    font-size: 11px;
+    color: var(--gf-text-tertiary);
+    margin-bottom: var(--space-3);
+    line-height: 1.4;
+}
+
+.gesture-checklist {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.check-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 6px 8px;
+    border-radius: var(--radius-md);
+    background: rgba(0,0,0,0.15);
+    border: 1px solid var(--gf-border);
+    transition: background 0.3s, border-color 0.3s;
+}
+
+.check-item .check-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 1px solid var(--gf-border);
+    color: transparent;
+    font-size: 11px;
+    line-height: 1;
+    flex-shrink: 0;
+    transition: background 0.3s, border-color 0.3s, color 0.3s;
+}
+
+.check-item .check-label {
+    flex: 1;
+    font-size: 12px;
+    color: var(--gf-text-secondary);
+}
+
+.check-item .check-status {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    color: var(--gf-text-tertiary);
+    letter-spacing: 0.5px;
+}
+
+.check-item.verified {
+    background: rgba(74, 222, 128, 0.08);
+    border-color: var(--gf-positive);
+}
+
+.check-item.verified .check-icon {
+    background: var(--gf-positive);
+    border-color: var(--gf-positive);
+    color: #04160a;
+}
+
+.check-item.verified .check-status {
+    color: var(--gf-positive);
+}
+
+.check-item.detecting {
+    background: rgba(96, 165, 250, 0.08);
+    border-color: var(--gf-accent);
+}
+
+.check-item.detecting .check-status {
+    color: var(--gf-accent);
+}
+
 .panel-actions {
     display: flex;
     gap: var(--space-3);

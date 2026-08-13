@@ -42,6 +42,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 2. Initialize Core Systems
   const camera = new CyberCamera('webcam', 'skeleton-overlay');
+  camera.setPreviewElement('game-camera-preview');
   const classifier = new CyberGestureClassifier();
   
   // Initialize loader and load game engine on unity-canvas
@@ -105,8 +106,19 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 3. Hand Tracker setup
   let wristYHistory = [];
+  let calibWristYHistory = [];
   let isCalibrating = false;
   let calibrationTimeout = null;
+
+  const CHECKLIST_GESTURE_MAP = {
+    'Open Palm': 'open_palm',
+    'Pinch': 'pinch',
+    'Fist': 'fist',
+    'Swipe Left': 'swipe',
+    'Swipe Right': 'swipe',
+    'Circle': 'circle',
+    'Jump': 'raise'
+  };
 
   const tracker = new CyberHandTracker(camera.video, (results) => {
     onTrackingFrame(results);
@@ -146,10 +158,86 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (statusText) statusText.textContent = `Camera Access Error: ${err.message}`;
   }
 
+  // Sustained-hold counters: require a gesture to be detected for several
+  // consecutive frames before it gets verified on the checklist.  This stops
+  // borderline classifications from ticking off multiple items at once.
+  const CHECKLIST_HOLD_REQUIRED = 3;  // consecutive frames needed
+  let checklistHoldGesture = null;
+  let checklistHoldCount = 0;
+
+  // Continuously classifies the live hand pose and ticks off the gesture
+  // checklist, regardless of which step the calibration wizard is on.
+  function updateGestureChecklist(landmarks) {
+    const activeCheck = classifier.classify(landmarks);
+    calibUI.updateConfidence(activeCheck.gesture, activeCheck.confidence);
+
+    let checklistGesture = activeCheck.gesture;
+    let checklistConfidence = activeCheck.confidence;
+
+    // Wrist Jump heuristic (mirrors gameplay loop; classify() doesn't detect raises)
+    const wrist = landmarks[0];
+    const now = Date.now();
+    calibWristYHistory.push({ y: wrist.y, time: now });
+    // Keep only frames from the last 300ms, and max 5 frames
+    calibWristYHistory = calibWristYHistory.filter(f => now - f.time < 300).slice(-5);
+
+    if (calibWristYHistory.length >= 3) {
+      const dy = calibWristYHistory[calibWristYHistory.length - 1].y - calibWristYHistory[0].y;
+      // Camera Y decreases while a hand is raised. This threshold is above
+      // normal smoothing jitter without requiring an exaggerated movement.
+      if (dy < -0.045) {
+        checklistGesture = 'Jump';
+        checklistConfidence = 0.95;
+        calibWristYHistory = []; // Clear on success
+      }
+    }
+
+    if (checklistConfidence >= 0.6) {
+      const checklistKey = CHECKLIST_GESTURE_MAP[checklistGesture];
+      if (checklistKey) {
+        calibUI.setGestureDetecting(checklistKey);
+        // Temporal gestures (swipe, circle, jump) verify instantly — they
+        // already require a specific motion trajectory so a hold is redundant.
+        const isTemporalGesture = ['Swipe Left', 'Swipe Right', 'Circle', 'Jump'].includes(checklistGesture);
+
+        if (isTemporalGesture) {
+          calibUI.markGestureVerified(checklistKey);
+          checklistHoldGesture = null;
+          checklistHoldCount = 0;
+        } else {
+          // Static gestures need sustained detection
+          if (checklistGesture === checklistHoldGesture) {
+            checklistHoldCount++;
+          } else {
+            checklistHoldGesture = checklistGesture;
+            checklistHoldCount = 1;
+          }
+
+          if (checklistHoldCount >= CHECKLIST_HOLD_REQUIRED) {
+            calibUI.markGestureVerified(checklistKey);
+            // Reset so the same gesture won't keep re-triggering immediately
+            checklistHoldGesture = null;
+            checklistHoldCount = 0;
+          }
+        }
+      }
+    } else {
+      // Confidence dropped — reset the hold counter
+      checklistHoldGesture = null;
+      checklistHoldCount = 0;
+      calibUI.clearGestureDetecting();
+    }
+  }
+
   // 4. Calibration Flow
   function startCalibrationFlow() {
     isCalibrating = true;
     classifier.resetCalibration();
+    classifier.history = [];
+    calibWristYHistory = [];
+    checklistHoldGesture = null;
+    checklistHoldCount = 0;
+    calibUI.resetChecklist();
     calibUI.setCalibratedState(false);
     runNextCalibrationStep();
   }
@@ -180,6 +268,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 5. Game Loop & Frame tick callbacks
   function startGameArena() {
     wristYHistory = [];
+    classifier.history = [];
     game.reset();
     game.start();
     coachUI.setCoachMessage("Arena loaded. Perform gestures to play!", '#4ade80');
@@ -200,6 +289,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       camera.clearCanvas();
     }
 
+    // Live gesture checklist: runs continuously on the calibration screen,
+    // independent of (and concurrently with) the step-by-step wizard below,
+    // so users can verify Swipe/Circle/Jump while also calibrating Size/Pinch/Palm/Fist.
+    if (screens.calibration.classList.contains('active')) {
+      if (results.landmarks) {
+        updateGestureChecklist(results.landmarks);
+      } else {
+        calibWristYHistory = [];
+      }
+    }
+
     // 1. Handle Calibration wizard input
     if (isCalibrating) {
       if (!results.landmarks) {
@@ -210,8 +310,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (progress !== null) {
         const step = classifier.calibrationSession.step;
         calibUI.updateStepProgress(step, progress);
-        
+
         if (progress >= 100) {
+          const calibratedGestureKeys = [null, 'pinch', 'open_palm', 'fist'];
+          const calibratedKey = calibratedGestureKeys[step];
+          if (calibratedKey) calibUI.markGestureVerified(calibratedKey);
           if (classifier.advanceCalibrationStep()) {
             runNextCalibrationStep();
           } else {
@@ -222,17 +325,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
-    // Update active settings status inside calibration preview cards
-    if (screens.calibration.classList.contains('active')) {
-      const activeCheck = classifier.classify(results.landmarks);
-      calibUI.updateConfidence(activeCheck.gesture, activeCheck.confidence);
-    }
-
     // 2. Active Gameplay inputs
     if (!game.isRunning) return;
 
     if (!results.landmarks) {
-      wristYHistory = [];
       coachUI.analyze(null, null, metrics.latency, 'None');
       hudUI.updateGestureStatus('Ready', 0);
       return;
@@ -245,12 +341,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Wrist Jump heuristic
     const wrist = results.landmarks[0];
-    wristYHistory.push(wrist.y);
-    if (wristYHistory.length > 5) wristYHistory.shift();
+    const now = Date.now();
+    wristYHistory.push({ y: wrist.y, time: now });
+    // Keep only frames from the last 300ms, and max 5 frames
+    wristYHistory = wristYHistory.filter(f => now - f.time < 300).slice(-5);
 
     if (wristYHistory.length >= 3) {
-      const dy = wristYHistory[wristYHistory.length - 1] - wristYHistory[0];
-      if (dy < -0.15 && !game.player.isJumping) {
+      const dy = wristYHistory[wristYHistory.length - 1].y - wristYHistory[0].y;
+      if (dy < -0.045 && !game.player.isJumping) {
         activeGesture = 'Jump';
         confidence = 0.95;
         wristYHistory = [];

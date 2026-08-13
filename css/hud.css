@@ -37,6 +37,60 @@
     pointer-events: auto; /* Re-enable pointer events for HUD elements */
 }
 
+/* Camera Preview */
+.camera-preview-panel {
+    position: absolute;
+    top: calc(var(--hud-top-height) + var(--space-4));
+    left: var(--space-4);
+    width: 180px;
+    background: rgba(12, 12, 20, 0.78);
+    border: 1px solid var(--gf-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-2);
+    backdrop-filter: blur(8px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
+    z-index: 3;
+    pointer-events: none;
+}
+
+.camera-preview-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-2);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.camera-preview-title {
+    color: var(--gf-text-secondary);
+    font-weight: 600;
+}
+
+.camera-preview-status {
+    color: var(--gf-positive);
+    font-family: var(--font-mono);
+}
+
+.camera-preview-frame {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: #000;
+}
+
+#game-camera-preview {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1);
+    display: block;
+}
+
 /* Top Bar */
 .hud-top {
     height: var(--hud-top-height);

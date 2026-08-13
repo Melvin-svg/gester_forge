@@ -16,7 +16,7 @@ class CyberGestureClassifier {
 
     this.MIN_THRESHOLD_GAP = GF_CONFIG.CALIBRATION.GAP_MIN;
     this.history = [];
-    this.historyMaxLength = 20;
+    this.historyMaxLength = 30;
     this.mirrored = GF_CONFIG.ACCESSIBILITY.MIRRORED;
 
     this.lastSwipeTime = 0;
@@ -59,6 +59,11 @@ class CyberGestureClassifier {
     const pinchDist = this.dist(landmarks[4], landmarks[8]) / handScale;
     const wrist = landmarks[0];
 
+    const indexTipRel = {
+      x: (landmarks[8].x - landmarks[0].x) / handScale,
+      y: (landmarks[8].y - landmarks[0].y) / handScale
+    };
+
     return {
       handScale,
       indexCurl,
@@ -68,6 +73,7 @@ class CyberGestureClassifier {
       pinchDist,
       wrist,
       indexTip: landmarks[8],
+      indexTipRel,
       time: Date.now()
     };
   }
@@ -203,7 +209,7 @@ class CyberGestureClassifier {
 
   getExecutionThreshold() {
     const s = this.calibration.sensitivity;
-    return Math.max(0.45, Math.min(0.95, 0.85 - (s - 1.0) * 0.3));
+    return Math.max(0.55, Math.min(0.95, 0.85 - (s - 1.0) * 0.3));
   }
 
   calculatePalmConfidence(f) {
@@ -234,37 +240,37 @@ class CyberGestureClassifier {
     const now = Date.now();
     if (now - this.lastSwipeTime < this.SWIPE_COOLDOWN) return null;
 
-    const frames = this.history.slice(-5);
+    const newest = this.history[this.history.length - 1];
+    const frames = this.history.filter(frame => newest.time - frame.time <= 450).slice(-12);
+    if (frames.length < 5) return null;
     const deltaX = frames[frames.length - 1].wrist.x - frames[0].wrist.x;
     const deltaY = frames[frames.length - 1].wrist.y - frames[0].wrist.y;
 
-    const swipeThreshold = 0.15;
+    const swipeThreshold = 0.055;
     if (Math.abs(deltaX) < swipeThreshold) return null;
 
-    if (Math.abs(deltaY) > Math.abs(deltaX) * 0.6) return null;
-
-    const sign = Math.sign(deltaX);
-    for (let i = 1; i < frames.length; i++) {
-      const stepDx = frames[i].wrist.x - frames[i - 1].wrist.x;
-      if (Math.sign(stepDx) === -sign && Math.abs(stepDx) > 0.01) return null;
-    }
+    if (Math.abs(deltaY) > Math.abs(deltaX) * 0.65) return null;
 
     const elapsed = frames[frames.length - 1].time - frames[0].time;
-    if (elapsed > 400) return null;
+    if (elapsed < 80 || elapsed > 500) return null;
 
     this.lastSwipeTime = now;
 
+    const sign = Math.sign(deltaX);
     const movingRightOnScreen = this.mirrored ? sign < 0 : sign > 0;
     return movingRightOnScreen ? 'Swipe Right' : 'Swipe Left';
   }
 
   detectCircle() {
-    if (this.history.length < 12) return false;
+    if (this.history.length < 16) return false;
 
     const now = Date.now();
     if (now - this.lastCircleTime < this.CIRCLE_COOLDOWN) return false;
 
-    const points = this.history.slice(-12).map(h => h.indexTip);
+    const newest = this.history[this.history.length - 1];
+    const frames = this.history.filter(frame => newest.time - frame.time <= 1300).slice(-30);
+    if (frames.length < 16) return false;
+    const points = frames.map(h => h.indexTip);
 
     const xs = points.map(p => p.x);
     const ys = points.map(p => p.y);
@@ -273,13 +279,15 @@ class CyberGestureClassifier {
     const width = maxX - minX;
     const height = maxY - minY;
 
-    if (width < 0.08 || height < 0.08) return false;
+    // Measure the finger on screen: a whole-hand circle keeps the finger in
+    // the same relative position to the wrist, but should still be detected.
+    if (width < 0.075 || height < 0.075) return false;
 
     const start = points[0];
     const end = points[points.length - 1];
     const distStartEnd = this.dist(start, end);
     const diagonal = Math.hypot(width, height);
-    if (distStartEnd > diagonal * 0.45) return false;
+    if (distStartEnd > diagonal * 0.65) return false;
 
     const centerX = xs.reduce((a, b) => a + b, 0) / points.length;
     const centerY = ys.reduce((a, b) => a + b, 0) / points.length;
@@ -292,7 +300,18 @@ class CyberGestureClassifier {
     const variance = radii.reduce((a, r) => a + Math.pow(r - avgRadius, 2), 0) / radii.length;
     const stdDev = Math.sqrt(variance);
 
-    if (stdDev / avgRadius < 0.3) {
+    let previousAngle = Math.atan2(points[0].y - centerY, points[0].x - centerX);
+    let accumulatedAngle = 0;
+    for (let i = 1; i < points.length; i++) {
+      const angle = Math.atan2(points[i].y - centerY, points[i].x - centerX);
+      let delta = angle - previousAngle;
+      if (delta > Math.PI) delta -= Math.PI * 2;
+      if (delta < -Math.PI) delta += Math.PI * 2;
+      accumulatedAngle += delta;
+      previousAngle = angle;
+    }
+
+    if (stdDev / avgRadius < 0.5 && Math.abs(accumulatedAngle) >= Math.PI * 1.35) {
       this.lastCircleTime = now;
       return true;
     }

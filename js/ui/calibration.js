@@ -11,7 +11,11 @@ class CalibrationController {
     this.previewName = document.getElementById('preview-name');
     this.previewConfFill = document.querySelector('.gesture-preview .conf-fill');
     this.previewConfText = document.querySelector('.gesture-preview .conf-text');
-    
+    this.checklistItems = {};
+    document.querySelectorAll('#gesture-checklist .check-item').forEach(item => {
+      this.checklistItems[item.dataset.gesture] = item;
+    });
+
     this.onStartGame = onStartGame;
     this.onRecalibrate = onRecalibrate;
 
@@ -37,6 +41,7 @@ class CalibrationController {
     }
     if (this.btnRecalib) {
       this.btnRecalib.addEventListener('click', () => {
+        this.resetChecklist();
         if (this.onRecalibrate) this.onRecalibrate();
       });
     }
@@ -67,6 +72,42 @@ class CalibrationController {
     if (this.learningText) {
       this.learningText.textContent = `Calibrating ${currentStep}: ${Math.round(progress)}%`;
     }
+  }
+
+  markGestureVerified(key) {
+    const item = this.checklistItems[key];
+    if (!item || item.classList.contains('verified')) return;
+    item.classList.add('verified');
+    const status = item.querySelector('.check-status');
+    if (status) status.textContent = 'Verified';
+  }
+
+  setGestureDetecting(key) {
+    const item = this.checklistItems[key];
+    if (!item || item.classList.contains('verified')) return;
+    Object.values(this.checklistItems).forEach(check => {
+      if (!check.classList.contains('verified')) check.classList.remove('detecting');
+    });
+    item.classList.add('detecting');
+    const status = item.querySelector('.check-status');
+    if (status) status.textContent = 'Detecting...';
+  }
+
+  clearGestureDetecting() {
+    Object.values(this.checklistItems).forEach(item => {
+      if (!item.classList.contains('detecting')) return;
+      item.classList.remove('detecting');
+      const status = item.querySelector('.check-status');
+      if (status) status.textContent = 'Not tested';
+    });
+  }
+
+  resetChecklist() {
+    Object.values(this.checklistItems).forEach(item => {
+      item.classList.remove('verified', 'detecting');
+      const status = item.querySelector('.check-status');
+      if (status) status.textContent = 'Not tested';
+    });
   }
 
   setCalibratedState(isCalibrated) {

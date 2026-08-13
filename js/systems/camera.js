@@ -8,9 +8,20 @@ class CyberCamera {
     this.canvas = document.getElementById(trackingCanvasId);
     this.ctx = this.canvas.getContext('2d');
     this.stream = null;
+    this.previewVideo = null;
     this.width = 640;
     this.height = 480;
     this.isMirrored = true;
+  }
+
+  setPreviewElement(previewElement) {
+    this.previewVideo = typeof previewElement === 'string'
+      ? document.getElementById(previewElement)
+      : previewElement;
+
+    if (this.previewVideo && this.stream) {
+      this.previewVideo.srcObject = this.stream;
+    }
   }
 
   /**
@@ -74,6 +85,9 @@ class CyberCamera {
       }, 33);
     }
     this.video.srcObject = this.stream;
+    if (this.previewVideo) {
+      this.previewVideo.srcObject = this.stream;
+    }
 
     // Wait for metadata so we know the true frame size.
     await new Promise((resolve, reject) => {
@@ -106,6 +120,14 @@ class CyberCamera {
       console.warn('Video playback did not start automatically: ', err);
     }
 
+    if (this.previewVideo) {
+      try {
+        await this.previewVideo.play();
+      } catch (err) {
+        console.warn('Preview playback did not start automatically: ', err);
+      }
+    }
+
     this.resizeCanvas();
     return this.stream;
   }
@@ -117,6 +139,9 @@ class CyberCamera {
     if (this.stream) {
       this.stream.getTracks().forEach(track => track.stop());
       this.video.srcObject = null;
+      if (this.previewVideo) {
+        this.previewVideo.srcObject = null;
+      }
       this.stream = null;
     }
   }
@@ -146,8 +171,10 @@ class CyberCamera {
     this.isMirrored = mirror;
     if (mirror) {
       this.video.style.transform = 'scaleX(-1)';
+      if (this.previewVideo) this.previewVideo.style.transform = 'scaleX(-1)';
     } else {
       this.video.style.transform = 'scaleX(1)';
+      if (this.previewVideo) this.previewVideo.style.transform = 'scaleX(1)';
     }
   }
 
