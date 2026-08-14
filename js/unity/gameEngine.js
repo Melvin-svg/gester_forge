@@ -34,6 +34,8 @@ class CyberGameEngine {
     this.arenaStars = this.createArenaStars();
     this.arenaBackground = new Image();
     this.arenaBackground.src = 'assets/moonlit-temple-arena.png';
+    this.playerSprite = new Image();
+    this.playerSprite.src = 'assets/shadow-duelist-hero.png';
 
     this.reset();
   }
@@ -67,7 +69,8 @@ class CyberGameEngine {
       movement: 0,
       pose: 'idle',
       poseTimer: 0,
-      lastHandSeen: 0
+      lastHandSeen: 0,
+      combo: 1
     };
 
     this.enemies = [];
@@ -622,6 +625,37 @@ class CyberGameEngine {
     // 6. Update Enemies
     for (let i = this.enemies.length - 1; i >= 0; i--) {
       const e = this.enemies[i];
+      const horizontalDistance = Math.abs(this.player.x - e.x);
+      e.walkCycle += (1.8 + e.speed * 2.2) * f;
+
+      // A shadow soldier now has a readable combat rhythm: approach, wind up,
+      // then strike.  This replaces the old invisible contact damage.
+      if (e.attackState === 'windup') {
+        e.attackTimer -= dt;
+        if (e.attackTimer <= 0) {
+          e.attackState = 'strike';
+          e.attackTimer = 170;
+          e.attackHit = false;
+          this.addSparks(e.x + e.facing * 16, e.y - 30, e.color, 5);
+        }
+      } else if (e.attackState === 'strike') {
+        e.attackTimer -= dt;
+        if (!e.attackHit && e.attackTimer < 100) {
+          const strikeDistance = Math.hypot(e.x - this.player.x, e.y - (this.player.y - 30));
+          if (strikeDistance < 58) {
+            this.damagePlayer(e.damage);
+            e.attackHit = true;
+            this.addSparks(this.player.x, this.player.y - 30, '#ff5b6e', 14);
+          }
+        }
+        if (e.attackTimer <= 0) {
+          e.attackState = 'recover';
+          e.attackTimer = 330;
+        }
+      } else if (e.attackState === 'recover') {
+        e.attackTimer -= dt;
+        if (e.attackTimer <= 0) e.attackState = 'approach';
+      }
 
       // Stun/Frozen controls
       if (e.stunTimer > 0) {
@@ -629,9 +663,15 @@ class CyberGameEngine {
       } else if (e.frozenTimer > 0) {
         e.frozenTimer -= dt;
       } else {
-        // AI movement: moves towards player
+        // Move until striking distance, then telegraph the sword attack.
         const dir = Math.sign(this.player.x - e.x);
-        e.x += dir * e.speed * f;
+        e.facing = dir || e.facing;
+        if (e.attackState === 'approach' && horizontalDistance > 52) {
+          e.x += dir * e.speed * f;
+        } else if (e.attackState === 'approach' && horizontalDistance <= 52) {
+          e.attackState = 'windup';
+          e.attackTimer = 440;
+        }
       }
 
       // Check collision with player projectiles (backwards, same reason)
@@ -653,19 +693,13 @@ class CyberGameEngine {
       if (e.hp <= 0) {
         this.player.score += e.scoreVal;
         this.player.xp += e.xpVal;
+        this.player.combo++;
         this.checkLevelUp();
         this.addSparks(e.x, e.y, e.color, 15);
         this.enemies.splice(i, 1);
         continue;
       }
 
-      // Check collision with player
-      const distToPlayer = Math.hypot(e.x - this.player.x, e.y - (this.player.y - 30));
-      if (distToPlayer < 40) {
-        this.damagePlayer(e.damage);
-        this.addSparks(e.x, e.y, e.color, 15);
-        this.enemies.splice(i, 1); // Destroy enemy on hit
-      }
     }
 
     // 7. Update Particles
@@ -690,6 +724,7 @@ class CyberGameEngine {
       return;
     }
     this.player.hp = Math.max(0, this.player.hp - amt);
+    this.player.combo = 1;
     this.stats.damageTaken += amt;
     this.addSparks(this.player.x, this.player.y - 30, '#ff3333', 20);
   }
@@ -766,7 +801,12 @@ class CyberGameEngine {
       scoreVal,
       xpVal,
       stunTimer: 0,
-      frozenTimer: 0
+      frozenTimer: 0,
+      walkCycle: Math.random() * Math.PI * 2,
+      facing: spawnSide < 0 ? 1 : -1,
+      attackState: 'approach',
+      attackTimer: 0,
+      attackHit: false
     });
   }
 
@@ -846,46 +886,83 @@ class CyberGameEngine {
         ctx.fillStyle = '#fff01f';
       }
 
-      // Compact martial-artist silhouette: readable at a distance, with a
-      // coloured rim rather than a simple glowing oval.
-      const facing = Math.sign(this.player.x - e.x) || 1;
+      // Animated shadow soldier: a full human silhouette, glowing mask and
+      // sword make its direction and attack timing easy to read at a glance.
+      const facing = e.facing || Math.sign(this.player.x - e.x) || 1;
+      const walking = e.attackState === 'approach' && e.stunTimer <= 0 && e.frozenTimer <= 0;
+      const legSwing = walking ? Math.sin(e.walkCycle) * 7 : 0;
+      const breathing = Math.sin(this.arenaTime * 0.005 + e.walkCycle) * 1.2;
+      const windingUp = e.attackState === 'windup';
+      const striking = e.attackState === 'strike';
+      const bodyY = e.y + breathing;
+
+      // A pulsing ring is the attack warning. Its red flash turns into the
+      // sword trail only when the hit can occur.
+      if (windingUp || striking) {
+        const progress = windingUp ? 1 - (e.attackTimer / 440) : 1;
+        ctx.strokeStyle = striking ? '#fff1d6' : 'rgba(255, 72, 92, 0.9)';
+        ctx.shadowColor = striking ? '#ff9d42' : '#ff3654';
+        ctx.shadowBlur = striking ? 20 : 12;
+        ctx.lineWidth = striking ? 3 : 2;
+        ctx.beginPath();
+        ctx.arc(e.x, e.y - 18, 26 + progress * 11, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
       ctx.fillStyle = '#06070a';
       ctx.beginPath();
-      ctx.arc(e.x, e.y - 48, 9, 0, Math.PI * 2); // head
+      ctx.arc(e.x, bodyY - 49, 10, 0, Math.PI * 2); // masked head
       ctx.fill();
       ctx.beginPath();
-      ctx.moveTo(e.x - 10, e.y - 38);
-      ctx.lineTo(e.x + 10, e.y - 38);
-      ctx.lineTo(e.x + 15, e.y - 12);
-      ctx.lineTo(e.x - 14, e.y - 12);
+      ctx.moveTo(e.x - 11, bodyY - 39);
+      ctx.lineTo(e.x + 11, bodyY - 39);
+      ctx.lineTo(e.x + 15, bodyY - 14);
+      ctx.lineTo(e.x - 15, bodyY - 14);
       ctx.closePath();
       ctx.fill();
       ctx.strokeStyle = e.frozenTimer > 0 ? '#8ce8ff' : (e.stunTimer > 0 ? '#ffd55e' : e.color);
       ctx.shadowColor = ctx.strokeStyle;
       ctx.shadowBlur = 9;
       ctx.lineWidth = 2;
-      ctx.beginPath(); // forward striking arm
-      ctx.moveTo(e.x + 5 * facing, e.y - 34);
-      ctx.lineTo(e.x + 22 * facing, e.y - 25);
-      ctx.lineTo(e.x + 27 * facing, e.y - 19);
+      ctx.beginPath(); // cloak edge and forward sword arm
+      ctx.moveTo(e.x - 10 * facing, bodyY - 37);
+      ctx.quadraticCurveTo(e.x - 24 * facing, bodyY - 24, e.x - 17 * facing, bodyY - 11);
+      ctx.moveTo(e.x + 5 * facing, bodyY - 34);
+      if (windingUp) {
+        ctx.lineTo(e.x - 13 * facing, bodyY - 42);
+        ctx.lineTo(e.x - 25 * facing, bodyY - 49);
+      } else if (striking) {
+        ctx.lineTo(e.x + 27 * facing, bodyY - 30);
+        ctx.lineTo(e.x + 42 * facing, bodyY - 19);
+      } else {
+        ctx.lineTo(e.x + 21 * facing, bodyY - 25);
+        ctx.lineTo(e.x + 27 * facing, bodyY - 19);
+      }
       ctx.stroke();
       ctx.beginPath(); // grounded stance
-      ctx.moveTo(e.x - 6, e.y - 13);
-      ctx.lineTo(e.x - 13, e.y);
-      ctx.moveTo(e.x + 6, e.y - 13);
-      ctx.lineTo(e.x + 14, e.y - 2);
+      ctx.moveTo(e.x - 6, bodyY - 13);
+      ctx.lineTo(e.x - (13 + legSwing) * facing, e.y);
+      ctx.moveTo(e.x + 6, bodyY - 13);
+      ctx.lineTo(e.x + (14 - legSwing) * facing, e.y - 2);
       ctx.stroke();
+
+      // The bright visor ensures this enemy remains visibly human even over
+      // the detailed arena artwork.
+      ctx.fillStyle = e.frozenTimer > 0 ? '#d7fbff' : '#ff5269';
+      ctx.shadowColor = ctx.fillStyle;
+      ctx.shadowBlur = 10;
+      ctx.fillRect(e.x + 2 * facing - 4, bodyY - 51, 7, 2);
 
       // Draw HP Bar
       const barW = 30;
       const barH = 4;
       ctx.shadowBlur = 0;
       ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-      ctx.fillRect(e.x - barW / 2, e.y - 60, barW, barH);
+      ctx.fillRect(e.x - barW / 2, e.y - 65, barW, barH);
 
       ctx.fillStyle = '#ff3333';
       const pct = Math.max(0, Math.min(1, e.hp / e.maxHp));
-      ctx.fillRect(e.x - barW / 2, e.y - 60, barW * pct, barH);
+      ctx.fillRect(e.x - barW / 2, e.y - 65, barW * pct, barH);
 
       ctx.restore();
     });
@@ -910,53 +987,53 @@ class CyberGameEngine {
     const px = this.player.x + lunge;
     const py = this.player.y + (pose === 'idle' ? Math.sin(this.arenaTime * 0.004) * 1.3 : 0);
     const facing = this.player.dashDirection >= 0 ? 1 : -1;
-    // Shadow-duelist body with a moonlit rim. This gives the player a much
-    // stronger fighting-game silhouette than the previous triangle marker.
-    ctx.fillStyle = '#050609';
+    // Detailed painted hero, with small live motions layered on top so the
+    // character feels present rather than like a static card.
+    const spriteReady = this.playerSprite.complete && this.playerSprite.naturalWidth;
+    const actionAmount = pose === 'dash' ? 1 : (isStriking ? 0.7 : 0);
+    const stride = Math.sin(this.player.walkCycle) * this.player.movement;
+    const spriteWidth = 122 + actionAmount * 12;
+    const spriteHeight = 174 - actionAmount * 8;
+    const spriteBob = Math.sin(this.arenaTime * 0.007 + this.player.walkCycle) * (1.8 + this.player.movement * 2.5);
+
+    // Ground shadow anchors the larger character to the floor.
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.38)';
     ctx.shadowBlur = 10;
-    ctx.shadowColor = '#75c7ff';
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.65)';
     ctx.beginPath();
-    ctx.arc(px, py - 56, 11, 0, Math.PI * 2); // masked head
+    ctx.ellipse(px, py + 2, 34 + this.player.movement * 7, 7, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(px - 13, py - 43);
-    ctx.lineTo(px + 13, py - 43);
-    ctx.lineTo(px + 18, py - 17);
-    ctx.lineTo(px + 7, py - 12);
-    ctx.lineTo(px - 14, py - 15);
-    ctx.closePath();
-    ctx.fill();
-    ctx.strokeStyle = '#7ed7ff';
-    ctx.shadowBlur = 14;
-    ctx.lineWidth = 2.5;
-    ctx.beginPath(); // back arm and leading weapon arm
-    ctx.moveTo(px - 8 * facing, py - 38);
-    ctx.lineTo(px - (pose === 'guard' ? 21 : 20) * facing, py - (pose === 'guard' ? 38 : 25));
-    ctx.moveTo(px + 8 * facing, py - 37);
-    ctx.lineTo(px + (isStriking ? 31 : 23) * facing, py - (isStriking ? 34 : 30));
-    ctx.lineTo(px + (isStriking ? 43 : 32) * facing, py - (isStriking ? 35 : 39));
-    ctx.stroke();
-    ctx.beginPath(); // low martial stance
-    ctx.moveTo(px - 7, py - 15);
-    ctx.lineTo(px - (18 + walkSwing) * facing, py);
-    ctx.moveTo(px + 7, py - 14);
-    ctx.lineTo(px + (16 - walkSwing) * facing, py - 3);
-    ctx.stroke();
 
-    // Small scarf streak helps the player read against the detailed sky.
-    ctx.strokeStyle = 'rgba(232, 67, 107, 0.9)';
-    ctx.shadowColor = '#e8436b';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(px - 7 * facing, py - 51);
-    ctx.quadraticCurveTo(px - (26 + walkSwing * 0.4) * facing, py - 48, px - 35 * facing, py - 41);
-    ctx.stroke();
+    if (spriteReady) {
+      ctx.save();
+      ctx.translate(px, py + spriteBob);
+      ctx.scale(facing, 1);
+      ctx.rotate(stride * 0.025 + actionAmount * 0.06);
+      ctx.shadowColor = '#3ab7ff';
+      ctx.shadowBlur = 13;
+      ctx.drawImage(this.playerSprite, -spriteWidth / 2, -spriteHeight, spriteWidth, spriteHeight);
+      ctx.restore();
+    } else {
+      // Brief loading fallback.
+      ctx.fillStyle = '#080b12';
+      ctx.shadowColor = '#38cfff';
+      ctx.shadowBlur = 12;
+      ctx.beginPath();
+      ctx.arc(px, py - 43, 12, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillRect(px - 15, py - 34, 30, 34);
+    }
 
-    // Glowing staff / aura, on the side the player is facing
-    ctx.fillStyle = '#00f0ff';
-    ctx.shadowColor = '#00f0ff';
+    // Spell movement is deliberately separate from the artwork: the orb
+    // pulses during casts and surges ahead on melee attacks.
+    const orbX = px + (25 + actionAmount * 16) * facing;
+    const orbY = py - 98 + spriteBob;
+    const orbPulse = 5 + Math.sin(this.arenaTime * 0.014) * 1.4 + actionAmount * 3;
+    ctx.fillStyle = '#52eeff';
+    ctx.shadowColor = '#00dfff';
+    ctx.shadowBlur = 18 + actionAmount * 12;
     ctx.beginPath();
-    ctx.arc(px + 15 * facing, py - 45, 4, 0, 2 * Math.PI);
+    ctx.arc(orbX, orbY, orbPulse, 0, Math.PI * 2);
     ctx.fill();
 
     // Shield drawing

@@ -24,6 +24,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     });
 
+    if (screenKey !== 'calibration') {
+      isCalibrating = false;
+      calibLockedHand = null;
+    }
+
     // Special handlers when entering screens
     if (screenKey === 'menu' && menuController) {
       menuController.start();
@@ -83,10 +88,49 @@ document.addEventListener('DOMContentLoaded', async () => {
   const minimap = new MinimapController('minimap-canvas');
   const analyticsUI = new AnalyticsUIController();
 
+  function updateCustomGesturesSettingsList() {
+    const customInfo = classifier.calibration.customGestures || {};
+    settingsUI.renderCustomGestures(customInfo, (nameToRemove) => {
+      classifier.removeCustomGesture(nameToRemove);
+      updateCustomGesturesSettingsList();
+      removeCustomGestureFromChecklistDOM(nameToRemove);
+    });
+  }
+
+  function addCustomGestureToChecklistDOM(name) {
+    const checklist = document.getElementById('gesture-checklist');
+    if (!checklist) return;
+
+    if (document.querySelector(`#gesture-checklist .check-item[data-gesture="${name}"]`)) return;
+
+    const item = document.createElement('div');
+    item.className = 'check-item';
+    item.setAttribute('data-gesture', name);
+    item.innerHTML = `
+      <span class="check-icon">✓</span>
+      <span class="check-label">${name}</span>
+      <span class="check-status">Not tested</span>
+    `;
+    checklist.appendChild(item);
+
+    calibUI.checklistItems[name] = item;
+  }
+
+  function removeCustomGestureFromChecklistDOM(name) {
+    const item = document.querySelector(`#gesture-checklist .check-item[data-gesture="${name}"]`);
+    if (item) {
+      item.remove();
+    }
+    delete calibUI.checklistItems[name];
+  }
+
   const settingsUI = new SettingsPanelController(
     (key, val) => { // Setting changed callback
       if (key === 'dominantHand') {
         tracker.setPreferredHand(val);
+        if (val !== 'both') {
+          classifier.setActiveHand(val);
+        }
       } else if (key === 'oneHandMode') {
         tracker.setMaxHands(val ? 1 : 2);
       } else if (key === 'mirrored') {
@@ -95,12 +139,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       } else if (key === 'sensitivity') {
         classifier.setSensitivity(val);
         tracker.updateFilterParams(val);
+      } else if (key === 'addCustomGesture') {
+        classifier.addCustomGesture(val.name, val.action);
+        updateCustomGesturesSettingsList();
+        addCustomGestureToChecklistDOM(val.name);
       }
     },
     () => { // Reset Profile callback
-      classifier.resetCalibration();
+      classifier.resetAllCalibrations();
       calibUI.setCalibratedState(false);
-      menuController.updateProfile("Player_01", false);
+      menuController.updateProfile("Player_01", false, classifier.activeHand);
+      updateCustomGesturesSettingsList();
     }
   );
 
@@ -108,6 +157,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   let wristYHistory = [];
   let calibWristYHistory = [];
   let isCalibrating = false;
+  let calibLockedHand = null;
+  let detectedHandHistory = [];
   let calibrationTimeout = null;
 
   const CHECKLIST_GESTURE_MAP = {
@@ -149,6 +200,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (statusText) statusText.textContent = "Ready!";
     if (fill) fill.style.width = "100%";
     
+    // Initialize custom gestures settings list on load
+    updateCustomGesturesSettingsList();
+
     setTimeout(() => {
       activateScreen('menu');
     }, 800);
@@ -193,7 +247,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     if (checklistConfidence >= 0.6) {
-      const checklistKey = CHECKLIST_GESTURE_MAP[checklistGesture];
+      const checklistKey = CHECKLIST_GESTURE_MAP[checklistGesture] || checklistGesture;
       if (checklistKey) {
         calibUI.setGestureDetecting(checklistKey);
         // Temporal gestures (swipe, circle, jump) verify instantly — they
@@ -232,6 +286,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 4. Calibration Flow
   function startCalibrationFlow() {
     isCalibrating = true;
+    calibLockedHand = null;
     classifier.resetCalibration();
     classifier.history = [];
     calibWristYHistory = [];
@@ -254,14 +309,25 @@ document.addEventListener('DOMContentLoaded', async () => {
       GF_I18N.en.calibration.fist
     ];
 
-    calibUI.updateStepProgress(step, 0);
-    coachUI.setCoachMessage(prompts[step], '#fbbf24');
+    let promptText = prompts[step];
+    let customName = null;
+
+    if (step > 3) {
+      const customList = classifier.getCustomGesturesList();
+      customName = customList[step - 4];
+      const customInfo = classifier.calibration.customGestures[customName];
+      promptText = `Hold your custom gesture "${customName}" (mapped to ${customInfo.mappedAction}) steady in front of the camera...`;
+    }
+
+    calibUI.updateStepProgress(step, 0, classifier.activeHand, customName);
+    coachUI.setCoachMessage(promptText, '#fbbf24');
   }
 
   function endCalibrationWizard() {
     isCalibrating = false;
+    calibLockedHand = null;
     calibUI.setCalibratedState(true);
-    menuController.updateProfile("Player_01", true);
+    menuController.updateProfile("Player_01", true, classifier.activeHand);
     coachUI.setCoachMessage(GF_I18N.en.calibration.complete, '#4ade80');
   }
 
@@ -289,6 +355,57 @@ document.addEventListener('DOMContentLoaded', async () => {
       camera.clearCanvas();
     }
 
+    // Auto-detect hand side (left vs right) and switch active calibration profile
+    if (results.landmarks && results.handedness) {
+      const rawLabel = (results.handedness.label || '').toLowerCase();
+      const detectedHand = tracker.HANDEDNESS_IS_FLIPPED
+        ? (rawLabel === 'left' ? 'right' : 'left')
+        : rawLabel;
+
+      if (detectedHand && (detectedHand === 'left' || detectedHand === 'right')) {
+        detectedHandHistory.push(detectedHand);
+        if (detectedHandHistory.length > 5) {
+          detectedHandHistory.shift();
+        }
+
+        const isConsistent = detectedHandHistory.length >= 5 && detectedHandHistory.every(h => h === detectedHand);
+
+        if (isConsistent) {
+          let shouldSwitch = false;
+          if (isCalibrating) {
+            if (!calibLockedHand) {
+              calibLockedHand = detectedHand;
+              shouldSwitch = true;
+            }
+          } else {
+            shouldSwitch = true;
+          }
+
+          if (shouldSwitch && classifier.activeHand !== detectedHand) {
+            classifier.setActiveHand(detectedHand);
+            tracker.setPreferredHand(detectedHand);
+
+            // Update Settings selection UI
+            settingsUI.updateHandSelection(detectedHand);
+
+            // Update Calibration UI
+            calibUI.updateDominantHand(detectedHand);
+            calibUI.setCalibratedState(classifier.calibration.isCalibrated);
+
+            // Update Main Menu profile text
+            menuController.updateProfile("Player_01", classifier.calibration.isCalibrated, detectedHand);
+
+            if (isCalibrating) {
+              // Inform the user through the coach overlay
+              coachUI.setCoachMessage(`Auto-detected ${detectedHand} hand. Calibrating ${detectedHand} hand...`, '#fbbf24');
+            }
+          }
+        }
+      }
+    } else {
+      detectedHandHistory = [];
+    }
+
     // Live gesture checklist: runs continuously on the calibration screen,
     // independent of (and concurrently with) the step-by-step wizard below,
     // so users can verify Swipe/Circle/Jump while also calibrating Size/Pinch/Palm/Fist.
@@ -309,11 +426,19 @@ document.addEventListener('DOMContentLoaded', async () => {
       const progress = classifier.processCalibrationFrame(results.landmarks);
       if (progress !== null) {
         const step = classifier.calibrationSession.step;
-        calibUI.updateStepProgress(step, progress);
+        let customName = null;
+        if (step > 3) {
+          const customList = classifier.getCustomGesturesList();
+          customName = customList[step - 4];
+        }
+        calibUI.updateStepProgress(step, progress, classifier.activeHand, customName);
 
         if (progress >= 100) {
           const calibratedGestureKeys = [null, 'pinch', 'open_palm', 'fist'];
-          const calibratedKey = calibratedGestureKeys[step];
+          let calibratedKey = calibratedGestureKeys[step];
+          if (step > 3) {
+            calibratedKey = customName;
+          }
           if (calibratedKey) calibUI.markGestureVerified(calibratedKey);
           if (classifier.advanceCalibrationStep()) {
             runNextCalibrationStep();
@@ -339,6 +464,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     let confidence = checkResult.confidence;
     const predictedX = checkResult.predictedX;
 
+    // Translate custom gesture to mapped action for the game
+    let gameGesture = activeGesture;
+    const customGestureInfo = classifier.calibration.customGestures?.[activeGesture];
+    if (customGestureInfo) {
+      gameGesture = customGestureInfo.mappedAction;
+    }
+
     // Wrist Jump heuristic
     const wrist = results.landmarks[0];
     const now = Date.now();
@@ -350,6 +482,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const dy = wristYHistory[wristYHistory.length - 1].y - wristYHistory[0].y;
       if (dy < -0.045 && !game.player.isJumping) {
         activeGesture = 'Jump';
+        gameGesture = 'Jump';
         confidence = 0.95;
         wristYHistory = [];
       }
@@ -357,7 +490,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Send command to Unity wrapper/Game
     const commandPayload = JSON.stringify({
-      gesture: activeGesture,
+      gesture: gameGesture,
       confidence: confidence,
       predictedX: predictedX
     });
@@ -421,7 +554,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const btnQuit = document.getElementById('btn-quit');
 
   function togglePauseMenu() {
-    if (!game.isRunning) return;
+    if (!game.isRunning || !pauseOverlay) return;
     
     if (pauseOverlay.classList.contains('active')) {
       pauseOverlay.classList.remove('active');

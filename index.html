@@ -183,7 +183,7 @@
                     </div>
                     <div class="profile-row">
                         <span class="pr-label">Dominant Hand</span>
-                        <span class="pr-value">Right</span>
+                        <span class="pr-value" id="calib-dominant-hand">Right</span>
                     </div>
                     <div class="profile-row">
                         <span class="pr-label">Calibration</span>
@@ -749,8 +749,33 @@
                             <span class="toggle-slider"></span>
                         </label>
                     </div>
+                <div class="settings-group">
+                    <h4>Custom Hand Signs</h4>
+                    <div class="setting-row-column">
+                        <div class="setting-info" style="margin-bottom: 6px;">
+                            <span class="setting-name">Add New Custom Sign</span>
+                            <span class="setting-desc">Configure a custom hand sign and map it to a spell</span>
+                        </div>
+                        <div class="custom-gesture-inputs" style="display: flex; gap: 8px; flex-direction: column; width: 100%;">
+                            <input type="text" id="custom-gesture-name" class="text-input" placeholder="Gesture Name (e.g. Peace)" style="width: 100%;">
+                            <select id="custom-gesture-action" class="select-input" style="width: 100%;">
+                                <option value="" disabled selected>Map to Game Spell...</option>
+                                <option value="pinch">Fireball (Pinch)</option>
+                                <option value="open_palm">Shield (Open Palm)</option>
+                                <option value="fist">Earth Slam (Fist)</option>
+                                <option value="circle">Ice Spell (Circle)</option>
+                            </select>
+                            <button class="btn primary small" id="btn-add-custom-gesture" style="width: 100%;">Add Hand Sign</button>
+                        </div>
+                    </div>
+                    <div class="setting-row-column" style="margin-top: 12px; border-top: 1px solid var(--gf-border); padding-top: 12px;">
+                        <span class="setting-name" style="margin-bottom: 6px; display: block;">Registered Hand Signs</span>
+                        <div id="custom-gestures-list" class="custom-gestures-list" style="max-height: 120px; overflow-y: auto;">
+                            <!-- Dynamically populated list of custom hand signs -->
+                        </div>
+                    </div>
                 </div>
-                
+
                 <div class="settings-group danger-zone">
                     <h4>Profile Management</h4>
                     <div class="setting-row">

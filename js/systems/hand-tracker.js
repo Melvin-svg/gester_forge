@@ -122,7 +122,7 @@ class CyberHandTracker {
    * Which hand to track when more than one is visible (accessibility control).
    */
   setPreferredHand(hand) {
-    const next = hand === 'left' ? 'left' : 'right';
+    const next = ['left', 'right', 'both'].includes(hand) ? hand : 'right';
     if (next !== this.preferredHand) {
       this.preferredHand = next;
       this.resetFilters(); // Avoid smoothing across a switch between hands
@@ -135,8 +135,9 @@ class CyberHandTracker {
   selectHandIndex(results) {
     const hands = results.multiHandLandmarks;
     if (!hands || hands.length === 0) return -1;
-    if (hands.length === 1 || !results.multiHandedness) return 0;
+    if (!results.multiHandedness) return 0;
 
+    // Search for the preferred hand first to prioritize it when both are visible
     for (let i = 0; i < results.multiHandedness.length; i++) {
       const label = (results.multiHandedness[i].label || '').toLowerCase();
       const actual = this.HANDEDNESS_IS_FLIPPED
@@ -145,7 +146,7 @@ class CyberHandTracker {
       if (actual === this.preferredHand) return i;
     }
 
-    return 0; // Preferred hand not visible - fall back to whatever is there
+    return 0; // Fall back to the first available hand
   }
 
   /**

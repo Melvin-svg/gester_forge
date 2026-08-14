@@ -14,6 +14,7 @@ class MainMenuController {
       this.initParticles();
     }
 
+    this.boundResizeCanvas = this.resizeCanvas.bind(this);
     this.bindEvents();
   }
 
@@ -43,7 +44,7 @@ class MainMenuController {
   start() {
     if (!this.canvas) return;
     this.resizeCanvas();
-    window.addEventListener('resize', this.resizeCanvas.bind(this));
+    window.addEventListener('resize', this.boundResizeCanvas);
     this.animate();
   }
 
@@ -51,7 +52,7 @@ class MainMenuController {
     if (this.animationFrame) {
       cancelAnimationFrame(this.animationFrame);
     }
-    window.removeEventListener('resize', this.resizeCanvas.bind(this));
+    window.removeEventListener('resize', this.boundResizeCanvas);
   }
 
   resizeCanvas() {
@@ -84,12 +85,13 @@ class MainMenuController {
     this.animationFrame = requestAnimationFrame(() => this.animate());
   }
 
-  updateProfile(name, calibrated) {
+  updateProfile(name, calibrated, hand = 'right') {
     const profileName = document.querySelector('.profile-name');
     const profileStatus = document.querySelector('.profile-status');
     if (profileName) profileName.textContent = name;
     if (profileStatus) {
-      profileStatus.textContent = calibrated ? 'Calibrated • Dominant Hand' : 'Uncalibrated';
+      const handStr = hand.charAt(0).toUpperCase() + hand.slice(1) + ' Hand';
+      profileStatus.textContent = calibrated ? `Calibrated • ${handStr}` : 'Uncalibrated';
     }
   }
 }

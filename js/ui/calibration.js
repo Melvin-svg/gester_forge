@@ -66,11 +66,12 @@ class CalibrationController {
     }
   }
 
-  updateStepProgress(step, progress) {
+  updateStepProgress(step, progress, hand = 'right', customStepName = null) {
     const steps = ['Size', 'Pinch', 'Palm', 'Fist'];
-    const currentStep = steps[step];
+    const currentStep = customStepName || steps[step] || 'Custom';
     if (this.learningText) {
-      this.learningText.textContent = `Calibrating ${currentStep}: ${Math.round(progress)}%`;
+      const handStr = hand.charAt(0).toUpperCase() + hand.slice(1);
+      this.learningText.textContent = `Calibrating ${handStr} Hand (${currentStep}): ${Math.round(progress)}%`;
     }
   }
 
@@ -108,6 +109,13 @@ class CalibrationController {
       const status = item.querySelector('.check-status');
       if (status) status.textContent = 'Not tested';
     });
+  }
+
+  updateDominantHand(hand) {
+    const el = document.getElementById('calib-dominant-hand');
+    if (el) {
+      el.textContent = hand.charAt(0).toUpperCase() + hand.slice(1);
+    }
   }
 
   setCalibratedState(isCalibrated) {

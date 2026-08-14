@@ -183,3 +183,58 @@
 .select-input:focus {
     border-color: var(--gf-border-hover);
 }
+
+/* Text Inputs & Custom Gestures */
+.text-input {
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--gf-border);
+    background: var(--gf-surface);
+    color: var(--gf-text-primary);
+    font-size: 13px;
+    font-family: inherit;
+    outline: none;
+}
+
+.text-input:focus {
+    border-color: var(--gf-border-hover);
+}
+
+.setting-row-column {
+    display: flex;
+    flex-direction: column;
+    padding: var(--space-2) 0;
+    gap: var(--space-2);
+}
+
+.custom-gestures-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+}
+
+.custom-gesture-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: rgba(255, 255, 255, 0.03);
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--gf-border);
+    font-size: 13px;
+}
+
+.custom-gesture-item .btn-remove {
+    background: transparent;
+    color: #f87171;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+    padding: 0 var(--space-2);
+    transition: color 0.2s;
+}
+
+.custom-gesture-item .btn-remove:hover {
+    color: #ef4444;
+}

@@ -4,15 +4,29 @@
  */
 class CyberGestureClassifier {
   constructor() {
-    // Calibration parameters (normalized by hand scale)
-    this.calibration = {
-      isCalibrated: false,
-      handScale: GF_CONFIG.ACCESSIBILITY.handScale || 0.12,
-      fistThreshold: 0.55,    // Curl threshold for fist
-      palmThreshold: 0.85,    // Curl threshold for open palm
-      pinchThreshold: 0.25,   // Distance ratio thumb to index
-      sensitivity: GF_CONFIG.ACCESSIBILITY.SENSITIVITY        // Global sensitivity scalar
+    // Calibration parameters for left and right hands separately
+    this.calibrations = {
+      right: {
+        isCalibrated: false,
+        handScale: GF_CONFIG.ACCESSIBILITY.handScale || 0.12,
+        fistThreshold: 0.55,    // Curl threshold for fist
+        palmThreshold: 0.85,    // Curl threshold for open palm
+        pinchThreshold: 0.25,   // Distance ratio thumb to index
+        sensitivity: GF_CONFIG.ACCESSIBILITY.SENSITIVITY,
+        customGestures: {}
+      },
+      left: {
+        isCalibrated: false,
+        handScale: GF_CONFIG.ACCESSIBILITY.handScale || 0.12,
+        fistThreshold: 0.55,    // Curl threshold for fist
+        palmThreshold: 0.85,    // Curl threshold for open palm
+        pinchThreshold: 0.25,   // Distance ratio thumb to index
+        sensitivity: GF_CONFIG.ACCESSIBILITY.SENSITIVITY,
+        customGestures: {}
+      }
     };
+    this.activeHand = 'right';
+    this.calibration = this.calibrations[this.activeHand];
 
     this.MIN_THRESHOLD_GAP = GF_CONFIG.CALIBRATION.GAP_MIN;
     this.history = [];
@@ -37,8 +51,54 @@ class CyberGestureClassifier {
     return Math.hypot(p1.x - p2.x, p1.y - p2.y);
   }
 
+  setActiveHand(hand) {
+    const nextHand = hand === 'left' ? 'left' : 'right';
+    if (this.activeHand !== nextHand) {
+      this.activeHand = nextHand;
+      this.calibration = this.calibrations[this.activeHand];
+      console.log(`Classifier switched active hand calibration to: ${this.activeHand}`);
+    }
+  }
+
+  addCustomGesture(name, mappedAction) {
+    const actions = {
+      'pinch': 'Pinch',
+      'open_palm': 'Open Palm',
+      'fist': 'Fist',
+      'circle': 'Circle'
+    };
+    const actionName = actions[mappedAction] || mappedAction;
+
+    ['right', 'left'].forEach(hand => {
+      this.calibrations[hand].customGestures = this.calibrations[hand].customGestures || {};
+      this.calibrations[hand].customGestures[name] = {
+        indexCurl: 0,
+        middleCurl: 0,
+        ringCurl: 0,
+        pinkyCurl: 0,
+        pinchDist: 0,
+        mappedAction: actionName,
+        isCalibrated: false
+      };
+    });
+  }
+
+  removeCustomGesture(name) {
+    ['right', 'left'].forEach(hand => {
+      if (this.calibrations[hand].customGestures) {
+        delete this.calibrations[hand].customGestures[name];
+      }
+    });
+  }
+
+  getCustomGesturesList() {
+    if (!this.calibration.customGestures) return [];
+    return Object.keys(this.calibration.customGestures);
+  }
+
   setSensitivity(val) {
-    this.calibration.sensitivity = val;
+    this.calibrations.right.sensitivity = val;
+    this.calibrations.left.sensitivity = val;
   }
 
   setMirrored(mirrored) {
@@ -89,6 +149,54 @@ class CyberGestureClassifier {
     this.calibrationSession.samples = [];
     this.calibrationSession.progress = 0;
     this.calibrationSession.inProgress = false;
+
+    // Reset only the active hand's calibration learned parameters (preserve sensitivity)
+    const hand = this.activeHand;
+    this.calibrations[hand].isCalibrated = false;
+    this.calibrations[hand].handScale = GF_CONFIG.ACCESSIBILITY.handScale || 0.12;
+    this.calibrations[hand].fistThreshold = 0.55;
+    this.calibrations[hand].palmThreshold = 0.85;
+    this.calibrations[hand].pinchThreshold = 0.25;
+
+    // Reset custom gestures calibrated states
+    if (this.calibrations[hand].customGestures) {
+      Object.keys(this.calibrations[hand].customGestures).forEach(name => {
+        this.calibrations[hand].customGestures[name].isCalibrated = false;
+        this.calibrations[hand].customGestures[name].indexCurl = 0;
+        this.calibrations[hand].customGestures[name].middleCurl = 0;
+        this.calibrations[hand].customGestures[name].ringCurl = 0;
+        this.calibrations[hand].customGestures[name].pinkyCurl = 0;
+        this.calibrations[hand].customGestures[name].pinchDist = 0;
+      });
+    }
+  }
+
+  resetAllCalibrations() {
+    this.calibrationSession.step = 0;
+    this.calibrationSession.samples = [];
+    this.calibrationSession.progress = 0;
+    this.calibrationSession.inProgress = false;
+
+    // Reset both calibrations (preserve sensitivity)
+    Object.keys(this.calibrations).forEach(hand => {
+      this.calibrations[hand].isCalibrated = false;
+      this.calibrations[hand].handScale = GF_CONFIG.ACCESSIBILITY.handScale || 0.12;
+      this.calibrations[hand].fistThreshold = 0.55;
+      this.calibrations[hand].palmThreshold = 0.85;
+      this.calibrations[hand].pinchThreshold = 0.25;
+
+      // Reset custom gestures calibrated states
+      if (this.calibrations[hand].customGestures) {
+        Object.keys(this.calibrations[hand].customGestures).forEach(name => {
+          this.calibrations[hand].customGestures[name].isCalibrated = false;
+          this.calibrations[hand].customGestures[name].indexCurl = 0;
+          this.calibrations[hand].customGestures[name].middleCurl = 0;
+          this.calibrations[hand].customGestures[name].ringCurl = 0;
+          this.calibrations[hand].customGestures[name].pinkyCurl = 0;
+          this.calibrations[hand].customGestures[name].pinchDist = 0;
+        });
+      }
+    });
   }
 
   processCalibrationFrame(landmarks) {
@@ -133,7 +241,25 @@ class CyberGestureClassifier {
       this.calibration.fistThreshold = Math.max(0.1, Math.min(ceiling, avgFist * 1.25));
       console.log(`Calibrated fist threshold: ${this.calibration.fistThreshold.toFixed(4)}`);
 
-      this.calibration.isCalibrated = true;
+      if (this.getCustomGesturesList().length === 0) {
+        this.calibration.isCalibrated = true;
+      }
+    } else if (step > 3) {
+      const customList = this.getCustomGesturesList();
+      const customName = customList[step - 4];
+      if (customName) {
+        this.calibration.customGestures[customName].indexCurl = avgOf(s => s.indexCurl);
+        this.calibration.customGestures[customName].middleCurl = avgOf(s => s.middleCurl);
+        this.calibration.customGestures[customName].ringCurl = avgOf(s => s.ringCurl);
+        this.calibration.customGestures[customName].pinkyCurl = avgOf(s => s.pinkyCurl);
+        this.calibration.customGestures[customName].pinchDist = avgOf(s => s.pinchDist);
+        this.calibration.customGestures[customName].isCalibrated = true;
+        console.log(`Calibrated custom gesture "${customName}":`, this.calibration.customGestures[customName]);
+      }
+
+      if (step === 3 + customList.length) {
+        this.calibration.isCalibrated = true;
+      }
     }
   }
 
@@ -142,7 +268,8 @@ class CyberGestureClassifier {
     this.calibrationSession.progress = 0;
     this.calibrationSession.inProgress = false;
 
-    if (this.calibrationSession.step < 3) {
+    const totalSteps = 3 + this.getCustomGesturesList().length;
+    if (this.calibrationSession.step < totalSteps) {
       this.calibrationSession.step++;
       return true;
     }
@@ -200,6 +327,18 @@ class CyberGestureClassifier {
       detectedGesture = 'Pinch';
     }
 
+    // Check calibrated custom gestures
+    if (this.calibration.customGestures) {
+      for (const [name, template] of Object.entries(this.calibration.customGestures)) {
+        if (!template.isCalibrated) continue;
+        const confidence = this.calculateCustomConfidence(features, template);
+        if (confidence > maxConfidence) {
+          maxConfidence = confidence;
+          detectedGesture = name;
+        }
+      }
+    }
+
     if (maxConfidence >= this.getExecutionThreshold()) {
       return { gesture: detectedGesture, confidence: maxConfidence, predictedX };
     }
@@ -210,6 +349,20 @@ class CyberGestureClassifier {
   getExecutionThreshold() {
     const s = this.calibration.sensitivity;
     return Math.max(0.55, Math.min(0.95, 0.85 - (s - 1.0) * 0.3));
+  }
+
+  calculateCustomConfidence(f, template) {
+    const dIndex = Math.abs(f.indexCurl - template.indexCurl);
+    const dMiddle = Math.abs(f.middleCurl - template.middleCurl);
+    const dRing = Math.abs(f.ringCurl - template.ringCurl);
+    const dPinky = Math.abs(f.pinkyCurl - template.pinkyCurl);
+    const dPinch = Math.abs(f.pinchDist - template.pinchDist);
+
+    const maxDiff = 0.22; // Tolerance threshold
+    const avgDiff = (dIndex + dMiddle + dRing + dPinky + dPinch) / 5;
+    
+    if (avgDiff >= maxDiff) return 0.0;
+    return 1.0 - (avgDiff / maxDiff);
   }
 
   calculatePalmConfidence(f) {
